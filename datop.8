@@ -1,0 +1,266 @@
+.TH datop 8 "December 3, 2021"
+.\" Please adjust this date whenever revising the manpage.
+.\"
+.\" Some roff macros, for reference:
+.\" .nh        disable hyphenation
+.\" .hy        enable hyphenation
+.\" .ad l      left justify
+.\" .ad b      justify to both left and right margins
+.\" .nf        disable filling
+.\" .fi        enable filling
+.\" .br        insert line break
+.\" .sp <n>    insert n+1 empty lines
+.\" for manpage-specific macros, see man(7)
+.SH NAME
+datop \- a tool for memory access analysis and NUMA access.
+.SH SYNOPSIS
+.B datop
+.RI [ -s ] " " [ -l ] " " [ -p ] " " [ -n ] " " [ -f ] " " [ -r ] " " [ -d ]
+.PP
+.B datop
+.RI [ -h ]
+.SH DESCRIPTION
+This manual page briefly documents the
+.B datop
+command.
+\fBdatop\fP is an observation tool for runtime memory access analysis of
+processes. What's more, It provides a software-define method for process to show
+NUMA access. This method is a fine-grained, and can analysis each regions access.
+It helps the user to characterize the NUMA behavior of processes and to identify
+where the NUMA-related performance bottlenecks reside. The tool base-on DAMON
+sampling sub-system to provide real-time analysis in production systems. The
+tool can be used to:
+
+\fBA)\fP Characterize the locality of all running processes to identify which
+regions with the poorest locality in the system.
+
+\fBB)\fP Identify the "hot" and "cold" memory areas. A "hot" memory area is where
+process have greater "nr_accesses". This metric called "ACCESS"
+.PP
+RMA: Remote Memory Access.
+.br
+LMA: Local Memory Access.
+.br
+ACCESS: The access number for this region.
+.br
+AGE: Age.
+.br
+
+\fBE)\fP Provide per-memcg statistics for processes. And datop will trace processes
+which have higher CPU% by default.
+
+.br
+RMA/LMA: ratio of RMA/LMA.
+.br
+ACCESS: Access number for a region.
+.br
+CPU%: CPU utilization.
+.br
+
+\fBdatop\fP is a GUI tool that periodically tracks and updates each regions data
+for processes. It also support scroll up/down by using the up or down key to navigate
+in a window and can use hot keys shown at the bottom of the window, to switch to
+different windows. For example, hotkey 'R' refreshes the data in the current window.
+
+Below is a detailed description of the various display windows and the data items
+that they display:
+
+\fB[WIN1 - Monitoring different processes]:\fP
+.br
+Get the locality characterization of all processes. This is the first window upon startup,
+it's datop's "Home" window. This window displays a list of processes. The top process has
+the highest system CPU utilization (CPU%), while the bottom process has the lowest CPU% in
+the system. Generally, the memory-intensive process is also CPU-intensive, so the processes
+shown in this window are sorted by CPU% by default. The user can press hotkeys '1', '2', '3', '4', or '5'
+to resort the output by "PID", "START", "SIZE", "ACCESS", or "AGE".
+
+.PP
+\fB[KEY METRICS]:\fP
+.br
+RMA: number of Remote Memory Access.
+.br
+        RMA = RMA / (RMA + LMA);
+.br
+LMA: number of Local Memory Access.
+.br
+        LMA = LMA / (RMA + LMA);
+.br
+CPU%: system CPU utilization (busy time across all CPUs).
+.PP
+\fB[HOTKEY]:\fP
+.br
+Q: Quit the application.
+.br
+H: WIN1 refresh.
+.br
+R: Refresh to show the latest data.
+.br
+D: Switch to WIN4 to show the DAMON configures.
+.br
+1: Sort by PID.
+.br
+2: Sort by START.
+.br
+3: Sort by SIZE.
+.br
+4: Sort by ACCESS.
+.br
+5: Sort by AGE.
+.PP
+\fB[WIN2 - Monitoring the process regions]:\fP
+.br
+Get the locality characterization with node affinity of a specified process.
+.PP
+\fB[KEY METRICS]:\fP
+.br
+MAP-LIST: show access according to /proc/<pid>/smaps.
+.br
+CPU%: per-node CPU utilization.
+.br
+Other metrics remain the same.
+.PP
+\fB[HOTKEY]:\fP
+.br
+Q: Quit the application.
+.br
+H: Switch to WIN1.
+.br
+B: Back to previous window.
+.br
+R: Refresh to show the latest data.
+.br
+L: Switch to WIN3 to show access according to /proc/<pid>/smaps.
+.br
+D: Switch to WIN4 to show the DAMON configures.
+.PP
+\fB[WIN3 - Monitoring all mapping addrsss]:\fP
+.br
+Get the access information according to mapping area in a specified process.
+.PP
+\fB[KEY METRICS]\fP:
+.br
+Other metrics remain the same.
+.PP
+\fB[HOTKEY]:\fP
+.br
+Q: Quit the application.
+.br
+H: Switch to WIN1.
+.br
+B: Back to previous window.
+.br
+R: Refresh to show the latest data.
+.br
+N: Switch to WIN4 to show the DAMON configures.
+.PP
+\fB[WIN4 - Information of DAMON]:\fP
+.br
+Show the parameters and CPU utilization for the current kdamon.x.
+.PP
+\fB[KEY METRICS]:\fP
+.br
+CPU%: CPU utilization.
+.br
+NPROC: the amount of processes which traced by this kdamon.
+.br
+RSS: the used memory for the current kdamon.
+.br
+SAMPLE: sampling interval.
+.br
+AGGR: aggregation interval.
+.br
+UPDATE: regions update interval.
+.PP
+\fB[HOTKEY]:\fP
+.br
+Q: Quit the application.
+.br
+H: Switch to WIN1.
+.br
+B: Back to previous window.
+.br
+R: Refresh to show the latest data.
+.PP
+.SH "OPTIONS"
+The following options are supported by datop:
+.PP
+-s sampling_precision
+.br
+normal: balance precision and overhead (default)
+.br
+high: high sampling precision (high overhead)
+.br
+low: low sampling precision, suitable for high load system
+.PP
+-n number_tasks
+.br
+number of tasks which will be monitored.
+.PP
+-p pid
+.br
+monitor the specified process.
+.PP
+-l log_level
+.br
+Specifies the level of logging in the log file. Valid values are:
+.br
+1: unknown (reserved for future use)
+.br
+2: all
+.PP
+-f log_file
+.br
+Specifies the log file where output will be written. If the log file is
+not writable, the tool will prompt "Cannot open '<file name>' for writting.".
+.PP
+-d dump_file
+.br
+Specifies the dump file where the screen data will be written. Generally the dump
+file is used for automated test. If the dump file is not writable, the tool will
+prompt "Cannot open <file name> for dump writing."
+.PP
+-h
+.br
+Displays the command's usage.
+.PP
+.SH EXAMPLES
+Example 1: Launch datop with high sampling precision
+.br
+datop -s high
+.PP
+Example 2: Write all warning messages in /tmp/datop.log
+.br
+datop -l 2 -o /tmp/datop.log
+.PP
+Example 3: Dump screen data in /tmp/dump.log
+.br
+datop -d /tmp/dump.log
+.PP
+Example 4: Monitoring the processes by pid
+.br
+datop -p 123 or datop -p 123,124
+.PP
+Example 5: Monitoring the processes according to CPU%
+.br
+datop -n 3
+.PP
+.SH EXIT STATUS
+.br
+0: successful operation.
+.br
+Other value: an error occurred.
+.PP
+.SH USAGE
+.br
+You must have root privileges to run datop.
+.br
+Or set -1 in /proc/sys/kernel/perf_event_paranoid
+.PP
+\fBNote\fP: The perf_event_paranoid setting has security implications and a non-root
+user probably doesn't have authority to access /proc. It is highly recommended
+that the user runs \fBdatop\fP as root.
+.PP
+.SH VERSION
+.br
+
+\fBdatop\fP requires DAMON related patch set.
