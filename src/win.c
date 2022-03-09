@@ -40,7 +40,7 @@ static void topnproc_caption_build(char *buf, int size)
 		(void)snprintf(buf, size,
 			       "%6s%15s%11s%16s%16s%11s%10s%9s%9s%9s",
 			       tmp, CAPTION_PROC, CAPTION_TYPE,
-			       tmp, CAPTION_END, CAPTION_SIZE,
+			       CAPTION_START, CAPTION_END, CAPTION_SIZE,
 			       CAPTION_NR_ACCESS, CAPTION_AGE, CAPTION_LOCAL,
 			       CAPTION_REMOTE);
 		break;
