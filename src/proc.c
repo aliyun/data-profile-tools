@@ -989,18 +989,104 @@ void monitor_exit(void)
 		system("echo off > /sys/kernel/debug/damon/monitor_on");
 }
 
+static int file2str(const char *directory, const char *what, char *ret, int cap)
+{
+	static char filename[80];
+	int fd, num_read;
+
+	sprintf(filename, "%s/%s", directory, what);
+	fd = open(filename, O_RDONLY, 0);
+	if(fd == -1)
+		return -1;
+
+	num_read = read(fd, ret, cap - 1);
+	close(fd);
+
+	if(num_read <= 0)
+		return -1;
+
+	ret[num_read] = '\0';
+
+	return num_read;
+}
+
+static int do_stats(pid_t pid, uint64_t *slice)
+{
+	char sbuf[1024] = {0};
+	char discard_str[1024] = {0};
+	char proc_path[64] = {0};
+	char state;
+	int ppid, pgrp, session, tty, tpgid;
+	unsigned long flags, min_flt, cmin_flt, maj_flt, cmaj_flt;
+	unsigned long long utime, stime, cutime, cstime;
+	char *tmp;
+	char *psbuf;
+	int ret = 0;
+
+	sprintf(proc_path, "/proc/%d", pid);
+	if(file2str(proc_path, "stat", sbuf, sizeof(sbuf)) == -1)
+		return -1;
+
+	tmp = strrchr(sbuf, ')');
+	psbuf = tmp + 2;
+	sscanf(psbuf,
+		"%c "
+		"%d %d %d %d %d "
+		"%lu %lu %lu %lu %lu "
+		"%Lu %Lu %Lu %Lu "  /* utime stime cutime cstime */
+		"%s", /* discard */
+		&state,
+		&ppid, &pgrp, &session, &tty, &tpgid,
+		&flags, &min_flt, &cmin_flt, &maj_flt, &cmaj_flt,
+		&utime, &stime, &cutime, &cstime,
+		discard_str);
+
+	*slice = utime + stime + cutime + cstime;
+	return ret;
+}
+
+static uint64_t read_cpu_jiffy(void)
+{
+	FILE *fp = NULL;
+	char buf[1024];
+	int num;
+	unsigned long long u, n, s, i, w, x, y, z; /* as represented in /proc/stat */
+	uint64_t total_jiffy = 0;
+
+	if (!(fp = fopen("/proc/stat", "r"))) {
+		stderr_print("failed /proc/stat open\n");
+		return 0;
+	}
+
+	if (!fgets(buf, sizeof(buf), fp)) {
+		stderr_print("failed /proc/stat read\n");
+		return 0;
+	}
+
+	num = sscanf(buf, "cpu %Lu %Lu %Lu %Lu %Lu %Lu %Lu %Lu",
+			&u, &n, &s, &i, &w, &x, &y, &z);
+	if (num < 4) {
+		stderr_print("failed /proc/stat read\n");
+		return 0;
+	}
+	total_jiffy = u + n + s + i + w + x + y + z;
+
+	return total_jiffy;
+}
+
 int cpu_slice_proc_load(track_proc_t * proc)
 {
 	double cpu_usage = 0;
-	char *total_slice_cmd =
-		"cat /proc/stat|grep \"cpu \"|awk '{for(i=2;i<=NF;i++)j+=$i;print j;}'";
-	char proc_slice_cmd[64] = {0};
+	uint64_t proc_slice, total_slice;
+	int ret = 0;
 
-	sprintf(proc_slice_cmd, "cat /proc/%d/stat|awk '{print $14+$15+$16+$17}'",
-			proc->pid);
+	total_slice = read_cpu_jiffy();
+	if (total_slice == 0)
+		return -1;
 
-	unsigned long total_slice = exec_cmd_return_ulong(total_slice_cmd, 10);
-	unsigned long proc_slice = exec_cmd_return_ulong(proc_slice_cmd, 10);
+	ret = do_stats(proc->pid, &proc_slice);
+	if (ret < 0)
+		return -1;
 
 	if (proc->slice[0].total_slice == 0) {
 		/* First time */
@@ -1008,8 +1094,8 @@ int cpu_slice_proc_load(track_proc_t * proc)
 		proc->slice[0].process_slice = proc_slice;
 		if (proc->slice[1].total_slice == 0) {
 			sleep_ms(5);
-			total_slice = exec_cmd_return_ulong(total_slice_cmd, 10);
-			proc_slice = exec_cmd_return_ulong(proc_slice_cmd, 10);
+			total_slice = read_cpu_jiffy();
+			do_stats(proc->pid, &proc_slice);
 			proc->slice[1].total_slice = total_slice;
 			proc->slice[1].process_slice = proc_slice;
 		}
