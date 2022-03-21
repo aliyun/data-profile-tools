@@ -239,11 +239,15 @@ static int get_damon_status(void)
 	return ret;
 }
 
+/*
+ * The processes number that monitored in cpu utilization way will
+ * be limited at 32.
+ */
 static int damon_is_target_proc(pid_t pid)
 {
 	char *target_ids = "/sys/kernel/debug/damon/target_ids";
 	int fd, ret = 0;
-	char data[32];
+	char data[32 * 8];
 	char *token;
 	pid_t pid2;
 
@@ -252,8 +256,8 @@ static int damon_is_target_proc(pid_t pid)
 		return 0;
 	}
 
-	memset(data, 0, 32);
-	ret = read(fd, data, 32);
+	memset(data, 0, 32*8 - 1);
+	ret = read(fd, data, 32*8);
 	if (ret < 0) {
 		debug_print(NULL, 2, "target_ids!\n");
 		close(fd);
