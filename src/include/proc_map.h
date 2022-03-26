@@ -114,9 +114,6 @@ int map_proc_load(struct _track_proc *);
 int map_proc_fini(struct _track_proc *);
 map_entry_t* map_entry_find(struct _track_proc *, uint64_t, uint64_t);
 map_entry_t* map_entry_find_simiar(struct _track_proc *, uint64_t, uint64_t);
-int map_map2numa(struct _track_proc *, map_entry_t *);
-int map_addr2nodedst(pid_t pid, void **, int *, int, map_nodedst_t *,
-	int, int *);
 void attr_bitmap2str(unsigned int bitmap, char *attr_str);
 
 #ifdef __cplusplus

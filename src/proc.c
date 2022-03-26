@@ -1130,9 +1130,10 @@ int proc_monitor(void)
 {
 	int i;
 	pid_t pid;
-	char procs[32] = {0};
+	char *procs = (char *)malloc(target_procs.nr_proc * 8);
 	char pid_str[12] = {0};
 
+	memset(procs, 0, target_procs.nr_proc * 8);
 	for (i=0; i<target_procs.nr_proc; i++) {
 		pid = target_procs.pid[i];
 		if (i == 0)
@@ -1149,6 +1150,7 @@ int proc_monitor(void)
 	perf_status_set(PERF_STATUS_IDLE);
 	perf_profiling_start();
 	debug_print(NULL, 2, "start monitoring process: %s\n", procs);
+	free(procs);
 
 	return target_procs.nr_proc;
 }
