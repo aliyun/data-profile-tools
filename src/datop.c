@@ -89,6 +89,8 @@ static void print_usage(const char *exec_name)
 
 	stderr_print("Usage: %s [option(s)]\n", basename(buffer));
 	stderr_print("  -h    print help\n"
+		     "  -c    monitor all processes under this cgroup.\n"
+		     "        e.g. damontop -c test (/sys/fs/cgroup/memory/test).\n"
 		     "  -d    path of the file to save the data in screen\n"
 		     "  -l    0/1/2, the level of output warning message\n"
 		     "  -f    path of the file to save warning message.\n"
@@ -132,10 +134,13 @@ int main(int argc, char *argv[])
 	uint64_t orig_sampling_intval, orig_aggr_intval, orig_regions_update;
 	uint64_t orig_min, orig_max;
 	pid_t pid;
-	int c;
+	int c, fd, i;
 	const char delim[2] = ",";
 	char *token;
 	char *procs;
+	char *cgroup_name;
+	char cgroup_path[128] = {0};
+	char cgroup_proc[512] = {0};
 
 	if (!os_authorized()) {
 		return (1);
@@ -167,7 +172,7 @@ int main(int argc, char *argv[])
 	/*
 	 * Parse command line arguments.
 	 */
-	while ((c = getopt(argc, argv, "d:l:o:p:f:n:t:hf:r:s:")) != EOF) {
+	while ((c = getopt(argc, argv, "c:d:l:o:p:f:n:t:hf:r:s:")) != EOF) {
 		switch (c) {
 		case 'h':
 			print_usage(argv[0]);
@@ -177,8 +182,7 @@ int main(int argc, char *argv[])
 		case 'l':
 			debug_level = atoi(optarg);
 			if ((debug_level < 0) || (debug_level > 2)) {
-				stderr_print("Invalid log_level %d.\n",
-					     debug_level);
+				stderr_print("Invalid log_level %d.\n", debug_level);
 				print_usage(argv[0]);
 				goto L_EXIT0;
 			}
@@ -224,8 +228,64 @@ int main(int argc, char *argv[])
 				if (token == NULL)
 					break;
 				if (target_procs.nr_proc >= PROC_MAX) {
-					stderr_print
-					    ("The traced proc number over 32.\n");
+					stderr_print("The traced proc number over %d.\n", PROC_MAX);
+					goto L_EXIT0;
+				}
+
+				pid = atoi(token);
+				if (pid <= 0) {
+					stderr_print("Invalid pid %d.\n", pid);
+					print_usage(argv[0]);
+					goto L_EXIT0;
+				}
+				target_procs.pid[target_procs.nr_proc] = pid;
+				target_procs.nr_proc++;
+			}
+
+			target_procs.ready = 1;
+			options |= O_PID;
+			break;
+
+		case 'c':
+			/* FIXME: only one cgroup supported now. */
+			cgroup_name = strdup(optarg);
+			sprintf(cgroup_path, "/sys/fs/cgroup/memory/%s/cgroup.procs",
+					cgroup_name);
+
+			if (access(cgroup_path, 0)) {
+				stderr_print("Found cgroup: %s failed!\n", cgroup_name);
+				goto L_EXIT0;
+			}
+
+			if ((fd = open(cgroup_path, O_RDONLY)) < 0) {
+				printf("%s: No such file!\n", cgroup_path);
+				goto L_EXIT0;
+			}
+
+			ret = read(fd, cgroup_proc, 512);
+			if (ret < 0) {
+				perror("cgroup proc!\n");
+				goto L_EXIT0;
+			}
+			close(fd);
+			memset(&target_procs, 0, sizeof(struct damon_proc_t));
+
+			procs = strdup(cgroup_proc);
+			/* Replace char. */
+			for (i = 0; i < (int)strlen(procs); i++) {
+				if (procs[i] == '\n')
+					procs[i] = ',';
+			}
+
+			token = strtok(cgroup_proc, "\n");
+			target_procs.pid[0] = atoi(token);
+			target_procs.nr_proc++;
+			while (token != NULL) {
+				token = strtok(NULL, "\n");
+				if (token == NULL)
+					break;
+				if (target_procs.nr_proc >= PROC_MAX) {
+					stderr_print("The traced proc number over %d.\n", PROC_MAX);
 					goto L_EXIT0;
 				}
 
@@ -289,8 +349,7 @@ int main(int argc, char *argv[])
 				break;
 			}
 
-			stderr_print("Invalid sampling_precision '%s'.\n",
-				     optarg);
+			stderr_print("Invalid sampling_precision '%s'.\n", optarg);
 			print_usage(argv[0]);
 			goto L_EXIT0;
 
@@ -301,8 +360,7 @@ int main(int argc, char *argv[])
 			}
 
 			if ((dump = fopen(optarg, "w")) == NULL) {
-				stderr_print("Cannot open '%s' for dump.\n",
-					     optarg);
+				stderr_print("Cannot open '%s' for dump.\n", optarg);
 				goto L_EXIT0;
 			}
 			break;
@@ -310,16 +368,14 @@ int main(int argc, char *argv[])
 		case 't':
 			g_run_secs = atoi(optarg);
 			if (g_run_secs <= 0) {
-				stderr_print("Invalid run time %d.\n",
-					     g_run_secs);
+				stderr_print("Invalid run time %d.\n", g_run_secs);
 				print_usage(argv[0]);
 				goto L_EXIT0;
 			}
 			break;
 
 		case ':':
-			stderr_print("Missed argument for option %c.\n",
-				     optopt);
+			stderr_print("Missed argument for option %c.\n", optopt);
 			print_usage(argv[0]);
 			goto L_EXIT0;
 
@@ -339,6 +395,7 @@ int main(int argc, char *argv[])
 		g_disp_intval = DISP_MIN_INTVAL;
 	}
 
+	printf("Start monitoring %s ...\n", procs);
 	/* procs = "pid1,pid2,pid3" */
 	if (options & O_PID) {
 		if (monitor_start(procs) < 0) {

@@ -46,7 +46,7 @@ extern "C" {
 #define PROC_NAME_SIZE 16
 #define PROC_HASHTBL_SIZE 128
 #define PROC_RECORD_MAX 256
-#define PROC_MAX 16
+#define PROC_MAX 50
 
 #define PROC_HASHTBL_INDEX(pid)	\
 	((int)(pid) % PROC_HASHTBL_SIZE)
