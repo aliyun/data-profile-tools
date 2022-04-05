@@ -89,8 +89,8 @@ static void print_usage(const char *exec_name)
 
 	stderr_print("Usage: %s [option(s)]\n", basename(buffer));
 	stderr_print("  -h    print help\n"
-		     "  -c    monitor all processes under this cgroup.\n"
-		     "        e.g. damontop -c test (/sys/fs/cgroup/memory/test).\n"
+		     "  -g    monitor all processes under this cgroup.\n"
+		     "        e.g. damontop -g /sys/fs/cgroup/memory/test/cgroup.procs.\n"
 		     "  -d    path of the file to save the data in screen\n"
 		     "  -l    0/1/2, the level of output warning message\n"
 		     "  -f    path of the file to save warning message.\n"
@@ -137,9 +137,8 @@ int main(int argc, char *argv[])
 	int c, fd, i;
 	const char delim[2] = ",";
 	char *token;
-	char *procs;
-	char *cgroup_name;
-	char cgroup_path[128] = {0};
+	char *procs = NULL;
+	char *cgroup_path;
 	char cgroup_proc[512] = {0};
 
 	if (!os_authorized()) {
@@ -172,7 +171,7 @@ int main(int argc, char *argv[])
 	/*
 	 * Parse command line arguments.
 	 */
-	while ((c = getopt(argc, argv, "c:d:l:o:p:f:n:t:hf:r:s:")) != EOF) {
+	while ((c = getopt(argc, argv, "g:d:l:o:p:f:n:t:hf:r:s:")) != EOF) {
 		switch (c) {
 		case 'h':
 			print_usage(argv[0]);
@@ -246,25 +245,26 @@ int main(int argc, char *argv[])
 			options |= O_PID;
 			break;
 
-		case 'c':
+		case 'g':
 			/* FIXME: only one cgroup supported now. */
-			cgroup_name = strdup(optarg);
-			sprintf(cgroup_path, "/sys/fs/cgroup/memory/%s/cgroup.procs",
-					cgroup_name);
+			cgroup_path = strdup(optarg);
 
 			if (access(cgroup_path, 0)) {
-				stderr_print("Found cgroup: %s failed!\n", cgroup_name);
+				stderr_print("Found cgroup: %s failed!\n", cgroup_path);
+				free(cgroup_path);
 				goto L_EXIT0;
 			}
 
 			if ((fd = open(cgroup_path, O_RDONLY)) < 0) {
 				printf("%s: No such file!\n", cgroup_path);
+				free(cgroup_path);
 				goto L_EXIT0;
 			}
 
 			ret = read(fd, cgroup_proc, 512);
-			if (ret < 0) {
+			if (ret <= 0) {
 				perror("cgroup proc!\n");
+				free(cgroup_path);
 				goto L_EXIT0;
 			}
 			close(fd);
@@ -299,6 +299,7 @@ int main(int argc, char *argv[])
 				target_procs.nr_proc++;
 			}
 
+			free(cgroup_path);
 			target_procs.ready = 1;
 			options |= O_PID;
 			break;
@@ -393,6 +394,12 @@ int main(int argc, char *argv[])
 		target_procs.last_ms = current_ms(&g_tvbase);
 		g_sortkey = SORT_KEY_CPU;
 		g_disp_intval = DISP_MIN_INTVAL;
+	}
+
+	if (!procs && argc >= 2) {
+		stderr_print("Missed argument for option.\n");
+		print_usage(argv[0]);
+		goto L_EXIT0;
 	}
 
 	printf("Start monitoring %s ...\n", procs);
