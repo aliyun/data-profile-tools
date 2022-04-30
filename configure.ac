@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_INIT([datop], [v1.0], [rongwei.wang@linux.alibaba.com])
+AC_INIT([datop], [v1.0], [])
 AM_INIT_AUTOMAKE([-Wno-portability no-dist-gzip dist-xz foreign subdir-objects])
 AC_CONFIG_SRCDIR([src/datop.c])
 AC_CONFIG_HEADERS([config.h])
@@ -23,11 +23,8 @@ AC_CHECK_LIB([pthread], [pthread_create])
 
 PKG_CHECK_MODULES([CHECK], [check])
 
-PKG_CHECK_MODULES([NCURSES], [ncursesw ncurses], [LIBS="$LIBS $ncurses_LIBS"], [
-	AC_SEARCH_LIBS([delwin], [ncursesw ncurses], [], [
-		AC_MSG_ERROR([ncurses is required but was not found])
-	], [])
-])
+AC_SEARCH_LIBS([delwin], [ncursesw ncurses], [],
+			   [AC_MSG_ERROR([ncurses is required but was not found])], [])
 
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h inttypes.h limits.h locale.h stddef.h stdint.h stdlib.h string.h strings.h sys/ioctl.h sys/time.h unistd.h])
