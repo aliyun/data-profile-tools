@@ -55,6 +55,8 @@ static proc_group_t s_proc_group;
 struct damon_proc_t target_procs = {0};
 pid_t damontop_pid;
 
+extern int numa_stat;
+
 /*
  * Initialization for the process group.
  */
@@ -963,7 +965,8 @@ int monitor_start(char *procs)
 	free(cmd);
 
 	system("echo on > /sys/kernel/debug/damon/monitor_on");
-	system("echo on > /sys/kernel/debug/damon/numa_stat");
+	if (numa_stat)
+		system("echo on > /sys/kernel/debug/damon/numa_stat");
 
 	return 0;
 }

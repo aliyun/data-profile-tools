@@ -73,6 +73,8 @@ extern void read_damon_attrs(const char *attrs, uint64_t *sample, uint64_t *aggr
 extern void write_damon_attrs(uint64_t sample, uint64_t aggr,
 		uint64_t regi, uint64_t min, uint64_t max);
 
+int numa_stat = 1;
+
 #define O_PID 0x0001
 #define O_NUM 0x0002
 #define O_REG 0x0004
@@ -150,10 +152,8 @@ int main(int argc, char *argv[])
 		goto L_EXIT0;
 	}
 
-	if (access("/sys/kernel/debug/damon/numa_stat", 0)) {
-		stderr_print("Not support NUMA fault stat (DAMON)!\n");
-		goto L_EXIT0;
-	}
+	if (access("/sys/kernel/debug/damon/numa_stat", 0))
+		numa_stat = 0;
 
 	damontop_pid = getpid();
 	g_sortkey = SORT_KEY_NRA;

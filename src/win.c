@@ -25,6 +25,7 @@
 static boolean_t s_first_load = B_TRUE;
 static win_reg_t s_note_reg;
 static win_reg_t s_title_reg;
+extern int numa_stat;
 
 /*
  * Build the readable string for caption line.
@@ -33,12 +34,14 @@ static win_reg_t s_title_reg;
 static void topnproc_caption_build(char *buf, int size)
 {
 	char tmp[64];
+	char *format = numa_stat > 0 ?
+		"%6s%15s%11s%16s%16s%11s%10s%9s%9s%9s" : "%6s%15s%11s%16s%16s%11s%10s%9s";
 
 	switch (g_sortkey) {
 	case SORT_KEY_PID:
 		(void)snprintf(tmp, sizeof(tmp), "*%s", CAPTION_PID);
 		(void)snprintf(buf, size,
-			       "%6s%15s%11s%16s%16s%11s%10s%9s%9s%9s",
+			       format,
 			       tmp, CAPTION_PROC, CAPTION_TYPE,
 			       CAPTION_START, CAPTION_END, CAPTION_SIZE,
 			       CAPTION_NR_ACCESS, CAPTION_AGE, CAPTION_LOCAL,
@@ -48,7 +51,7 @@ static void topnproc_caption_build(char *buf, int size)
 	case SORT_KEY_START:
 		(void)snprintf(tmp, sizeof(tmp), "*%s", CAPTION_START);
 		(void)snprintf(buf, size,
-			       "%6s%15s%11s%16s%16s%11s%10s%9s%9s%9s",
+			       format,
 			       CAPTION_PID, CAPTION_PROC, CAPTION_TYPE,
 			       tmp, CAPTION_END, CAPTION_SIZE,
 			       CAPTION_NR_ACCESS, CAPTION_AGE, CAPTION_LOCAL,
@@ -58,7 +61,7 @@ static void topnproc_caption_build(char *buf, int size)
 	case SORT_KEY_SIZE:
 		(void)snprintf(tmp, sizeof(tmp), "*%s", CAPTION_SIZE);
 		(void)snprintf(buf, size,
-			       "%6s%15s%11s%16s%16s%11s%10s%9s%9s%9s",
+			       format,
 			       CAPTION_PID, CAPTION_PROC, CAPTION_TYPE,
 			       CAPTION_START, CAPTION_END, tmp,
 			       CAPTION_NR_ACCESS, CAPTION_AGE, CAPTION_LOCAL,
@@ -69,7 +72,7 @@ static void topnproc_caption_build(char *buf, int size)
 		/* The only support sort */
 		(void)snprintf(tmp, sizeof(tmp), "*%s", CAPTION_NR_ACCESS);
 		(void)snprintf(buf, size,
-			       "%6s%15s%11s%16s%16s%11s%10s%9s%9s%9s",
+			       format,
 			       CAPTION_PID, CAPTION_PROC, CAPTION_TYPE,
 			       CAPTION_START, CAPTION_END, CAPTION_SIZE, tmp,
 			       CAPTION_AGE, CAPTION_LOCAL, CAPTION_REMOTE);
@@ -77,7 +80,7 @@ static void topnproc_caption_build(char *buf, int size)
 
 	default:
 		(void)snprintf(buf, size,
-			       "%6s%15s%11s%16s%16s%11s%10s%9s%9s%9s",
+			       format,
 			       CAPTION_PID, CAPTION_PROC, CAPTION_TYPE,
 			       CAPTION_START, CAPTION_END, CAPTION_SIZE,
 			       CAPTION_NR_ACCESS, CAPTION_AGE, CAPTION_LOCAL,
@@ -100,8 +103,13 @@ static void topnproc_data_build(char *buf, int size, topnproc_line_t * line)
 	float percent_local = 0, percent_remote = 0;
 	char local_str[16] = {0}, remote_str[16] = {0};
 	uint64_t sz;
+	char *format = numa_stat > 0 ? "%6d%15s%11s%16lx%16lx%11ld%10ld%9ld%9s%9s" :
+		"%6d%15s%11s%16lx%16lx%11ld%10ld%9ld";
 
 	sz = (value->end - value->start) >> 10;
+	if (!numa_stat)
+		goto no_numa_stat;
+
 	if (value->local || value->remote) {
 		percent_local =
 		    (float)value->local / (value->local + value->remote);
@@ -109,20 +117,17 @@ static void topnproc_data_build(char *buf, int size, topnproc_line_t * line)
 
 		sprintf(local_str, "%8.2f%%%%", percent_local * 100);
 		sprintf(remote_str, "%8.2f%%%%", percent_remote * 100);
-		(void)snprintf(buf, size,
-			       "%6d%15s%11s%16lx%16lx%11ld%10ld%9ld%9s%9s",
-			       line->pid, line->proc_name, line->map_attr,
-			       value->start, value->end, sz, value->nr_access,
-			       value->age, local_str, remote_str);
 	} else {
 		sprintf(local_str, "%8.2f%%%%", (float)0);
 		sprintf(remote_str, "%8.2f%%%%", (float)0);
-		(void)snprintf(buf, size,
-			       "%6d%15s%11s%16lx%16lx%11ld%10ld%9ld%9s%9s",
-			       line->pid, line->proc_name, line->map_attr,
-			       value->start, value->end, sz, value->nr_access,
-			       value->age, local_str, remote_str);
 	}
+
+no_numa_stat:
+	(void)snprintf(buf, size,
+			format,
+			line->pid, line->proc_name, line->map_attr,
+			value->start, value->end, sz, value->nr_access,
+			value->age, local_str, remote_str);
 }
 
 /*
@@ -545,12 +550,14 @@ static void topnproc_win_scrollenter(dyn_win_t * win)
 static void moni_caption_build(char *buf, int size)
 {
 	char tmp[64];
+	char *format = numa_stat > 0 ?
+		"%6s%10s%16s%16s%11s%10s%10s%10s%10s" : "%6s%10s%16s%16s%11s%10s%10s";
 
 	switch (g_sortkey) {
 	case SORT_KEY_START:
 		(void)snprintf(tmp, sizeof(tmp), "*%s", CAPTION_START);
 		(void)snprintf(buf, size,
-		       "%6s%10s%16s%16s%11s%10s%10s%10s%10s",
+		       format,
 		       CAPTION_INDEX, CAPTION_TYPE, tmp, CAPTION_END,
 		       CAPTION_SIZE, CAPTION_NR_ACCESS, CAPTION_AGE, CAPTION_LOCAL,
 		       CAPTION_REMOTE);
@@ -559,7 +566,7 @@ static void moni_caption_build(char *buf, int size)
 	case SORT_KEY_SIZE:
 		(void)snprintf(tmp, sizeof(tmp), "*%s", CAPTION_SIZE);
 		(void)snprintf(buf, size,
-		       "%6s%10s%16s%16s%11s%10s%10s%10s%10s",
+		       format,
 		       CAPTION_INDEX, CAPTION_TYPE, CAPTION_START, CAPTION_END,
 		       tmp, CAPTION_NR_ACCESS, CAPTION_AGE, CAPTION_LOCAL,
 		       CAPTION_REMOTE);
@@ -569,7 +576,7 @@ static void moni_caption_build(char *buf, int size)
 		/* The only support sort */
 		(void)snprintf(tmp, sizeof(tmp), "*%s", CAPTION_NR_ACCESS);
 		(void)snprintf(buf, size,
-		       "%6s%10s%16s%16s%11s%10s%10s%10s%10s",
+		       format,
 		       CAPTION_INDEX, CAPTION_TYPE, CAPTION_START, CAPTION_END,
 		       CAPTION_SIZE, tmp, CAPTION_AGE, CAPTION_LOCAL,
 		       CAPTION_REMOTE);
@@ -577,7 +584,7 @@ static void moni_caption_build(char *buf, int size)
 
 	default:
 		(void)snprintf(buf, size,
-		       "%6s%10s%16s%16s%11s%10s%10s%10s%10s",
+		       format,
 		       CAPTION_INDEX, CAPTION_TYPE, CAPTION_START, CAPTION_END,
 		       CAPTION_SIZE, CAPTION_NR_ACCESS, CAPTION_AGE, CAPTION_LOCAL,
 		       CAPTION_REMOTE);
@@ -591,6 +598,8 @@ static void moni_data_build(char *buf, int size, moni_line_t * line, int idx)
 	float percent_local = 0, percent_remote = 0;
 	char local_str[16] = {0}, remote_str[16] = {0};
 	uint64_t sz;
+	char *format = numa_stat > 0 ?
+		"%6d%10s%16lx%16lx%11ld%10ld%10ld%10s%10s" : "%6d%10s%16lx%16lx%11ld%10ld%10ld";
 
 	sz = (value->end - value->start) >> 10;
 	if (value->local || value->remote) {
@@ -601,7 +610,7 @@ static void moni_data_build(char *buf, int size, moni_line_t * line, int idx)
 		sprintf(local_str, "%9.2f%%%%", percent_local * 100);
 		sprintf(remote_str, "%9.2f%%%%", percent_remote * 100);
 		(void)snprintf(buf, size,
-			       "%6d%10s%16lx%16lx%11ld%10ld%10ld%10s%10s", idx,
+			       format, idx,
 			       line->map_attr, value->start, value->end, sz,
 			       value->nr_access, value->age,
 				   local_str, remote_str);
@@ -609,7 +618,7 @@ static void moni_data_build(char *buf, int size, moni_line_t * line, int idx)
 		sprintf(local_str, "%9.2f%%%%", (float)0);
 		sprintf(remote_str, "%9.2f%%%%", (float)0);
 		(void)snprintf(buf, size,
-			       "%6d%10s%16lx%16lx%11ld%10ld%10ld%10s%10s", idx,
+			       format, idx,
 			       line->map_attr, value->start, value->end, sz,
 			       value->nr_access, value->age,
 				   local_str, remote_str);
