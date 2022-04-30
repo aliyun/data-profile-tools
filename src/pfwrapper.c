@@ -23,6 +23,7 @@ int sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_TID | PERF_SAMPLE_CPU
 int read_format = PERF_FORMAT_ID;
 
 extern perf_damon_event_t *perf_damon_conf;
+extern int numa_stat;
 
 static int
 pf_event_open(struct perf_event_attr *attr, pid_t pid, int cpu, int group_fd,
@@ -330,10 +331,9 @@ static int profiling_sample_read(struct perf_event_mmap_page *mhdr,
 		unsigned long end = raw2data(&data[32], 8);
 		unsigned int nr_accesses = raw2data(&data[40], 4);
 		unsigned long age = raw2data(&data[44], 4);
-		unsigned long local = raw2data(&data[48], 8);
-		unsigned long remote = raw2data(&data[56], 8);
+		unsigned long local = numa_stat > 0 ? raw2data(&data[48], 8) : 0;
+		unsigned long remote = numa_stat > 0 ? raw2data(&data[56], 8) : 0;
 
-		free(data);
 		countval->counts[PERF_COUNT_DAMON_NR_REGIONS] = nr_regions;
 		countval->counts[PERF_COUNT_DAMON_START] = start;
 		countval->counts[PERF_COUNT_DAMON_END] = end;
@@ -342,6 +342,7 @@ static int profiling_sample_read(struct perf_event_mmap_page *mhdr,
 		countval->counts[PERF_COUNT_DAMON_LOCAL] = local;
 		countval->counts[PERF_COUNT_DAMON_REMOTE] = remote;
 		rec->pid = target_id;
+		free(data);
 	} else {
 		free(data);
 		debug_print(NULL, 2,
